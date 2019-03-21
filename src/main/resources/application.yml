@@ -1,0 +1,14 @@
+server:
+  port: 8082
+
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 1000
+        readTimeout: 1000
+        loggerLevel: basic
+
+faireservice:
+  url: https://www.faire-stage.com
+  token: abc
