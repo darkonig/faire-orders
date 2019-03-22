@@ -4,25 +4,28 @@ import com.faire.orders.faireorders.domain.*;
 import com.faire.orders.faireorders.domain.collections.EntityList;
 import com.faire.orders.faireorders.entity.*;
 import com.faire.orders.faireorders.exception.TechnicalException;
+import com.faire.orders.faireorders.processor.OrderProcessor;
+import com.faire.orders.faireorders.processor.OrderProcessorFactory;
+import com.faire.orders.faireorders.processor.OrderProcessorResult;
 import com.faire.orders.faireorders.service.FaireService;
 import com.faire.orders.faireorders.service.OrderService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.time.chrono.IsoChronology;
 import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeFormatterBuilder;
-import java.time.format.ResolverStyle;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @Service
 public class OrderServiceImpl implements OrderService {
+
+    private static final Logger logger = LoggerFactory.getLogger(OrderServiceImpl.class);
 
     private final FaireService service;
 
@@ -51,8 +54,10 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public ProcessOrderResult processOrder(String accessToken, List<Order> orders, List<Product> brandProductList) {
+        logger.debug("[ProcessOrder] Orders: {}, Products: {}", orders, brandProductList);
         boolean isAcceptable = orders.stream().anyMatch(e -> OrderState.NEW != e.getState());
         if (isAcceptable) {
+            logger.info("[ProcessOrder] Invalid order to process, the order must be NEW to be processed.");
             throw new TechnicalException("Invalid order to process, the order must be NEW to be processed.");
         }
 
@@ -69,7 +74,7 @@ public class OrderServiceImpl implements OrderService {
         for (Order order: orders) {
             boolean containsOrder = false;
 
-            for (OrderItem e : order.getItems()) {
+            /*for (OrderItem e : order.getItems()) {
                 ProductOption option = options.get(e.getProductOptionId());
                 if (option == null) {
                     continue;
@@ -82,19 +87,19 @@ public class OrderServiceImpl implements OrderService {
                     }
 
                     item.put(e.getId(), BackorderItem.builder()
-                            .availableQuantity(option.getAvailableQuantity())
-                            .discontinued(!option.isActive())
-                            .backorderedUntil(option.getBackorderedUntil())
-                            .build());
+                        .availableQuantity(option.getAvailableQuantity())
+                        .discontinued(!option.isActive())
+                        .backorderedUntil(option.getBackorderedUntil())
+                        .build());
                     continue;
                 }
 
                 ProductOptionUpdateRequest opt = productOptionUpdate.get(option.getId());
                 if (opt == null) {
                     opt = ProductOptionUpdateRequest.builder()
-                            .availableUnits(option.getAvailableQuantity() - e.getQuantity())
-                            .productOption(option)
-                            .build();
+                        .availableUnits(option.getAvailableQuantity() - e.getQuantity())
+                        .productOption(option)
+                        .build();
                     productOptionUpdate.put(option.getId(), opt);
                 } else {
                     opt.addAvailableUnits(opt.getAvailableUnits() - e.getQuantity());
@@ -106,15 +111,51 @@ public class OrderServiceImpl implements OrderService {
                 option.setAvailableQuantity(opt.getAvailableUnits());
                 e.setProcessed(true);
 
-                /*inventories.add(Inventory.builder()
-                        .sku(option.getSku())
-                        .backorderedUntil(option.getBackorderedUntil())
-                        .currentQuantity(option.getAvailableQuantity() - e.getQuantity())
-                        .discontinued(!option.isActive())
-                        .soldAmount(e.getQuantity())
-                        .build());*/
+//                inventories.add(Inventory.builder()
+//                        .sku(option.getSku())
+//                        .backorderedUntil(option.getBackorderedUntil())
+//                        .currentQuantity(option.getAvailableQuantity() - e.getQuantity())
+//                        .discontinued(!option.isActive())
+//                        .soldAmount(e.getQuantity())
+//                        .build());
                 orderItems.add(e);
                 containsOrder = true;
+            }*/
+
+            for (OrderItem e : order.getItems()) {
+                ProductOption option = options.get(e.getProductOptionId());
+                if (option == null) {
+                    continue;
+                }
+                OrderProcessor processor = OrderProcessorFactory.get(e, option);
+                OrderProcessorResult result = processor.process(e, option);
+                if (result.getBackorderItem() != null) {
+                    Map<String, BackorderItem> item = backorder.get(order.getId());
+                    if (item == null) {
+                        item = new HashMap<>();
+                        backorder.put(order.getId(), item);
+                    }
+
+                    item.put(e.getId(), result.getBackorderItem());
+                } else if (result.getProductOptionUpdateRequest() != null) {
+                    ProductOptionUpdateRequest opt = productOptionUpdate.get(option.getId());
+                    if (opt == null) {
+                        opt = result.getProductOptionUpdateRequest();
+                        productOptionUpdate.put(option.getId(), opt);
+                    } else {
+                        ProductOptionUpdateRequest updateRequest = result.getProductOptionUpdateRequest();
+
+                        opt.addSoldUnits(updateRequest.getSoldUnits());
+                        opt.addTotalValue(updateRequest.getTotalValue());
+                        opt.addTesterTotalValue(updateRequest.getTesterTotalValue());
+                    }
+
+                    option.setAvailableQuantity(opt.getAvailableUnits());
+                    e.setProcessed(true);
+
+                    orderItems.add(e);
+                    containsOrder = true;
+                }
             }
 
             if (containsOrder) {
@@ -122,7 +163,11 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        //processOptions(accessToken, inventories);
+        logger.debug("[ProcessOrder] Update ProductOptionUpdate: {}, Order: {}, Backorder: {}", productOptionUpdate, processOrders, backorder);
+
+        for (Map.Entry<String, ProductOptionUpdateRequest> entry : productOptionUpdate.entrySet()) {
+            updateProductOption(accessToken, entry.getKey(), entry.getValue());
+        }
         for (Order order : processOrders) {
             acceptOrder(accessToken, order);
         }
@@ -187,14 +232,6 @@ public class OrderServiceImpl implements OrderService {
                 .build();
     }
 
-    /*ProductOptionResponse processOptions(String accessToken, InventoryResponse inventories) {
-        return service.updateInventory(accessToken, inventories);
-    }*/
-
-    ProductOption processOptions(String accessToken, String productOptionId, ProductOptionUpdateRequest productOptionUpdate) {
-        return service.updateProductOption(accessToken, productOptionId, productOptionUpdate);
-    }
-
     boolean acceptOrder(String accessToken, Order order) {
         return service.acceptOrder(accessToken, order.getId());
     }
@@ -203,9 +240,14 @@ public class OrderServiceImpl implements OrderService {
         return service.backorderItems(accessToken, orderId, items);
     }
 
+    ProductOption updateProductOption(String accessToken, String optionId, ProductOptionUpdateRequest updateRequest) {
+        return service.updateProductOption(accessToken, optionId, updateRequest);
+    }
+
     private <T> List<T> getAll(Function<Integer, ? extends EntityList<T>> fn) {
         List<T> result = new ArrayList<>();
         ObjectMapper mapper = new ObjectMapper();
+
         for (int page = 1; true; page++) {
             EntityList<T> list = fn.apply(page);
             if (list.getItems().size() > 2) {
@@ -216,11 +258,13 @@ public class OrderServiceImpl implements OrderService {
                     ((Order)list.getItems().get(1)).setState(OrderState.NEW);
                 }
             }
+
             try {
-                System.out.println(mapper.writeValueAsString(list));
+                logger.debug("Response data: {}", mapper.writeValueAsString(list));
             } catch (JsonProcessingException e) {
                 e.printStackTrace();
             }
+
             if (list == null || list.getItems() == null || list.getItems().isEmpty()) {
                 break;
             }
