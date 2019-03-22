@@ -8,7 +8,7 @@ import java.util.List;
 
 @Data
 @Builder
-public class OrderList implements EntityList<Order>{
+public class OrderResponse implements EntityList<Order>{
     private int page;
     private int limit;
     private List<Order> orders;

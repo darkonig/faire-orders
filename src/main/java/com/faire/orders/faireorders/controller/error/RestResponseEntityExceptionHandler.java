@@ -23,7 +23,7 @@ public class RestResponseEntityExceptionHandler extends ResponseEntityExceptionH
     @ExceptionHandler({TechnicalException.class})
     public ResponseEntity<Object> handleBadRequest(final TechnicalException ex, final WebRequest request) {
         ErrorMessage msg = new ErrorMessage();
-        msg.setCode(HttpStatus.BAD_REQUEST.toString());
+        msg.setCode(String.valueOf(HttpStatus.BAD_REQUEST.value()));
         msg.setMessage(ex.getMessage());
 
         return handleExceptionInternal(ex, msg, new HttpHeaders(), HttpStatus.BAD_REQUEST, request);
@@ -32,7 +32,7 @@ public class RestResponseEntityExceptionHandler extends ResponseEntityExceptionH
     @Override
     protected ResponseEntity<Object> handleHttpMessageNotReadable(final HttpMessageNotReadableException ex, final HttpHeaders headers, final HttpStatus status, final WebRequest request) {
         ErrorMessage msg = new ErrorMessage();
-        msg.setCode(HttpStatus.BAD_REQUEST.toString());
+        msg.setCode(String.valueOf(HttpStatus.BAD_REQUEST.value()));
         msg.setMessage(ex.getMessage());
 
         return handleExceptionInternal(ex, msg, headers, HttpStatus.BAD_REQUEST, request);
@@ -46,7 +46,7 @@ public class RestResponseEntityExceptionHandler extends ResponseEntityExceptionH
         code = code.replaceAll("\\{field\\}", ex.getBindingResult().getFieldError().getField());
 
         ErrorMessage msg = new ErrorMessage();
-        msg.setCode(HttpStatus.BAD_REQUEST.toString());
+        msg.setCode(String.valueOf(HttpStatus.BAD_REQUEST.value()));
         msg.setMessage(code);
 
         return handleExceptionInternal(ex, msg, headers, HttpStatus.BAD_REQUEST, request);
@@ -60,7 +60,7 @@ public class RestResponseEntityExceptionHandler extends ResponseEntityExceptionH
         }
         ErrorMessage msg = new ErrorMessage();
         msg.setMessage(ex.getMessage());
-        msg.setCode(HttpStatus.INTERNAL_SERVER_ERROR.toString());
+        msg.setCode(String.valueOf(HttpStatus.INTERNAL_SERVER_ERROR.value()));
 
         return super.handleExceptionInternal(ex, msg, headers, status, request);
     }
@@ -69,7 +69,7 @@ public class RestResponseEntityExceptionHandler extends ResponseEntityExceptionH
     private ResponseEntity<Object> handleInternal(final RuntimeException ex, final WebRequest request) {
         ex.printStackTrace();
         ErrorMessage msg = new ErrorMessage();
-        msg.setCode(HttpStatus.INTERNAL_SERVER_ERROR.toString());
+        msg.setCode(String.valueOf(HttpStatus.INTERNAL_SERVER_ERROR.value()));
         msg.setMessage(ex.getMessage());
 
         return handleExceptionInternal(ex, msg, new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR, request);

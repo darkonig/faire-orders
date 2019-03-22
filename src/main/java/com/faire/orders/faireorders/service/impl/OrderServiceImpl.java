@@ -39,7 +39,8 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public List<Order> getNewOrders(String accessToken) {
-        List<OrderState> exclusion = Stream.of(OrderState.values()).filter(e -> e != OrderState.NEW).collect(Collectors.toList());
+        //List<OrderState> exclusion = Stream.of(OrderState.values()).filter(e -> e != OrderState.NEW).collect(Collectors.toList());
+        List<OrderState> exclusion = Collections.emptyList();
         DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss.000'Z'");
         String shipAfter = dateTimeFormatter.format(ZonedDateTime.now(ZoneOffset.UTC));
 
@@ -60,7 +61,7 @@ public class OrderServiceImpl implements OrderService {
                 .collect(Collectors.toMap(ProductOption::getId, e -> e));
 
         Map<String, Map<String, BackorderItem>> backorder = new HashMap<>();
-        //InventoryList inventories = new InventoryList();
+        //InventoryResponse inventories = new InventoryResponse();
         Map<String, ProductOptionUpdateRequest> productOptionUpdate = new HashMap<>();
         List<OrderItem> orderItems = new ArrayList<>();
         List<Order> processOrders = new ArrayList<>();
@@ -70,7 +71,10 @@ public class OrderServiceImpl implements OrderService {
 
             for (OrderItem e : order.getItems()) {
                 ProductOption option = options.get(e.getProductOptionId());
-                if (option == null || option.getAvailableQuantity() < e.getQuantity()) {
+                if (option == null) {
+                    continue;
+                }
+                if (option.getAvailableQuantity() < e.getQuantity()) {
                     Map<String, BackorderItem> item = backorder.get(order.getId());
                     if (item == null) {
                         item = new HashMap<>();
@@ -183,7 +187,7 @@ public class OrderServiceImpl implements OrderService {
                 .build();
     }
 
-    /*ProductOptionList processOptions(String accessToken, InventoryList inventories) {
+    /*ProductOptionResponse processOptions(String accessToken, InventoryResponse inventories) {
         return service.updateInventory(accessToken, inventories);
     }*/
 
@@ -204,6 +208,14 @@ public class OrderServiceImpl implements OrderService {
         ObjectMapper mapper = new ObjectMapper();
         for (int page = 1; true; page++) {
             EntityList<T> list = fn.apply(page);
+            if (list.getItems().size() > 2) {
+                if (list.getItems().get(0) instanceof Order) {
+                    ((Order)list.getItems().get(0)).setState(OrderState.NEW);
+                }
+                if (list.getItems().get(1) instanceof Order) {
+                    ((Order)list.getItems().get(1)).setState(OrderState.NEW);
+                }
+            }
             try {
                 System.out.println(mapper.writeValueAsString(list));
             } catch (JsonProcessingException e) {

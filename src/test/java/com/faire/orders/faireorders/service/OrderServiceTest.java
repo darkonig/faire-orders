@@ -1,8 +1,8 @@
 package com.faire.orders.faireorders.service;
 
 import com.faire.orders.faireorders.domain.*;
-import com.faire.orders.faireorders.domain.collections.OrderList;
-import com.faire.orders.faireorders.domain.collections.ProductList;
+import com.faire.orders.faireorders.domain.collections.OrderResponse;
+import com.faire.orders.faireorders.domain.collections.ProductResponse;
 import com.faire.orders.faireorders.entity.AnalyzesResult;
 import com.faire.orders.faireorders.entity.ProcessOrderResult;
 import com.faire.orders.faireorders.exception.TechnicalException;
@@ -142,23 +142,23 @@ public class OrderServiceTest {
                         .build()
         );
 
-        when(faireService.getProducts(anyString(), eq(1))).thenReturn(ProductList.builder()
+        when(faireService.getProducts(anyString(), eq(1))).thenReturn(ProductResponse.builder()
                 .limit(50)
                 .page(1)
                 .products(productList)
                 .build());
-        when(faireService.getProducts(anyString(), eq(2))).thenReturn(ProductList.builder()
+        when(faireService.getProducts(anyString(), eq(2))).thenReturn(ProductResponse.builder()
                 .limit(50)
                 .page(2)
                 .products(Collections.emptyList())
                 .build());
 
-        when(faireService.getOrders(anyString(), eq(1), anyList(), anyString())).thenReturn(OrderList.builder()
+        when(faireService.getOrders(anyString(), eq(1), anyList(), anyString())).thenReturn(OrderResponse.builder()
                 .limit(10)
                 .page(2)
                 .orders(orderList)
                 .build());
-        when(faireService.getOrders(anyString(), eq(2), anyList(), anyString())).thenReturn(OrderList.builder()
+        when(faireService.getOrders(anyString(), eq(2), anyList(), anyString())).thenReturn(OrderResponse.builder()
                 .limit(10)
                 .page(2)
                 .orders(Collections.emptyList())

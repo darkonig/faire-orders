@@ -8,7 +8,7 @@ import java.util.List;
 
 @Data
 @Builder
-public class ProductList implements EntityList<Product> {
+public class ProductResponse implements EntityList<Product> {
     private int page;
     private int limit;
     private List<Product> products;

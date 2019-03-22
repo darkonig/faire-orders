@@ -3,7 +3,6 @@ package com.faire.orders.faireorders.entity;
 import com.faire.orders.faireorders.domain.BackorderItem;
 import com.faire.orders.faireorders.domain.Order;
 import com.faire.orders.faireorders.domain.ProductOptionUpdateRequest;
-import com.faire.orders.faireorders.domain.collections.InventoryList;
 import lombok.Builder;
 import lombok.Getter;
 

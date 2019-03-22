@@ -10,7 +10,7 @@ import java.util.Set;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class InventoryList {
+public class InventoryResponse {
 
     private Set<Inventory> inventories;
 

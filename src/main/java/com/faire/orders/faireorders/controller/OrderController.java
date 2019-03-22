@@ -51,12 +51,11 @@ public class OrderController {
             throw new TechnicalException("No new orders found.");
         }
 
-//        ProcessOrderResult result = service.processOrder(accessToken, orders, products);
-//
-//        AnalyzesResult analytics = service.getResultAnalytics(result);
+        ProcessOrderResult result = service.processOrder(accessToken, orders, products);
 
-        //return ResponseEntity.ok(analytics);
-        return null;
+        AnalyzesResult analytics = service.getResultAnalytics(result);
+
+        return ResponseEntity.ok(analytics);
         // get all products of the brand
         // get inventory level for each prod option
         // save inventory

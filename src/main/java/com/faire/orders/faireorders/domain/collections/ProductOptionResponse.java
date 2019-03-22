@@ -8,7 +8,7 @@ import java.util.List;
 
 @Data
 @Builder
-public class ProductOptionList {
+public class ProductOptionResponse {
 
     private List<ProductOption> options;
 
