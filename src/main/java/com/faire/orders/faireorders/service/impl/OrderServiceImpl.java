@@ -1,0 +1,223 @@
+package com.faire.orders.faireorders.service.impl;
+
+import com.faire.orders.faireorders.domain.*;
+import com.faire.orders.faireorders.domain.collections.EntityList;
+import com.faire.orders.faireorders.entity.*;
+import com.faire.orders.faireorders.exception.TechnicalException;
+import com.faire.orders.faireorders.service.FaireService;
+import com.faire.orders.faireorders.service.OrderService;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.stereotype.Service;
+
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.chrono.IsoChronology;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.ResolverStyle;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+@Service
+public class OrderServiceImpl implements OrderService {
+
+    private final FaireService service;
+
+    public OrderServiceImpl(FaireService service) {
+        this.service = service;
+    }
+
+    @Override
+    public List<Product> getProducts(String accessToken, String brandId) {
+        return getAll((page) -> service.getProducts(accessToken, page)).stream()
+                .filter(e -> e.getBrandId().equals(brandId))
+            .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<Order> getNewOrders(String accessToken) {
+        List<OrderState> exclusion = Stream.of(OrderState.values()).filter(e -> e != OrderState.NEW).collect(Collectors.toList());
+        DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss.000'Z'");
+        String shipAfter = dateTimeFormatter.format(ZonedDateTime.now(ZoneOffset.UTC));
+
+        return getAll((page) -> service.getOrders(accessToken, page, exclusion, shipAfter)).stream()
+                .filter(e -> e.getState() == OrderState.NEW)
+            .collect(Collectors.toList());
+    }
+
+    @Override
+    public ProcessOrderResult processOrder(String accessToken, List<Order> orders, List<Product> brandProductList) {
+        boolean isAcceptable = orders.stream().anyMatch(e -> OrderState.NEW != e.getState());
+        if (isAcceptable) {
+            throw new TechnicalException("Invalid order to process, the order must be NEW to be processed.");
+        }
+
+        Map<String, ProductOption> options = brandProductList.stream()
+                .flatMap(e -> e.getOptions().stream())
+                .collect(Collectors.toMap(ProductOption::getId, e -> e));
+
+        Map<String, Map<String, BackorderItem>> backorder = new HashMap<>();
+        //InventoryList inventories = new InventoryList();
+        Map<String, ProductOptionUpdateRequest> productOptionUpdate = new HashMap<>();
+        List<OrderItem> orderItems = new ArrayList<>();
+        List<Order> processOrders = new ArrayList<>();
+
+        for (Order order: orders) {
+            boolean containsOrder = false;
+
+            for (OrderItem e : order.getItems()) {
+                ProductOption option = options.get(e.getProductOptionId());
+                if (option == null || option.getAvailableQuantity() < e.getQuantity()) {
+                    Map<String, BackorderItem> item = backorder.get(order.getId());
+                    if (item == null) {
+                        item = new HashMap<>();
+                        backorder.put(order.getId(), item);
+                    }
+
+                    item.put(e.getId(), BackorderItem.builder()
+                            .availableQuantity(option.getAvailableQuantity())
+                            .discontinued(!option.isActive())
+                            .backorderedUntil(option.getBackorderedUntil())
+                            .build());
+                    continue;
+                }
+
+                ProductOptionUpdateRequest opt = productOptionUpdate.get(option.getId());
+                if (opt == null) {
+                    opt = ProductOptionUpdateRequest.builder()
+                            .availableUnits(option.getAvailableQuantity() - e.getQuantity())
+                            .productOption(option)
+                            .build();
+                    productOptionUpdate.put(option.getId(), opt);
+                } else {
+                    opt.addAvailableUnits(opt.getAvailableUnits() - e.getQuantity());
+                }
+                opt.addSoldUnits(e.getQuantity());
+                opt.addTotalValue(e.getTotalPriceCents());
+                opt.addTesterTotalValue(e.getTotalTesterPriceCents());
+
+                option.setAvailableQuantity(opt.getAvailableUnits());
+                e.setProcessed(true);
+
+                /*inventories.add(Inventory.builder()
+                        .sku(option.getSku())
+                        .backorderedUntil(option.getBackorderedUntil())
+                        .currentQuantity(option.getAvailableQuantity() - e.getQuantity())
+                        .discontinued(!option.isActive())
+                        .soldAmount(e.getQuantity())
+                        .build());*/
+                orderItems.add(e);
+                containsOrder = true;
+            }
+
+            if (containsOrder) {
+                processOrders.add(order);
+            }
+        }
+
+        //processOptions(accessToken, inventories);
+        for (Order order : processOrders) {
+            acceptOrder(accessToken, order);
+        }
+        for(Map.Entry<String, Map<String, BackorderItem>> entry : backorder.entrySet()) {
+            backorderItems(accessToken, entry.getKey(), entry.getValue());
+        }
+
+        return ProcessOrderResult.builder()
+                .backorders(backorder)
+                .orders(processOrders)
+                .productOptionUpdate(productOptionUpdate)
+                .build();
+    }
+
+    @Override
+    public AnalyzesResult getResultAnalytics(ProcessOrderResult result) {
+        Map<String, ProductOptionUpdateRequest> backorders = result.getProductOptionUpdate();
+        ProductOptionUpdateRequest bestSollingProduct = backorders.values().stream()
+                .max(Comparator.comparing(ProductOptionUpdateRequest::getSoldUnits))
+                .orElse(ProductOptionUpdateRequest.builder().build());
+
+        List<Order> order = result.getOrders();
+        Order maxOrder = order.stream().max(Comparator.comparing(Order::getTotalPriceCents)).orElse(Order.builder().build());
+
+        Order maxOrderTesters = order.stream().max(Comparator.comparing(Order::getTotalTesterPriceCents)).orElse(Order.builder().build());
+
+        Map<String, Long> statesPrices = order.stream()
+                .collect(Collectors.groupingBy(e -> e.getAddress().getState(), Collectors.summingLong(Order::getTotalPriceCents)));
+        StateOrder greatestStateValue = statesPrices.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(e -> StateOrder.builder()
+                        .state(e.getKey())
+                        .value(e.getValue())
+                        .build())
+                .orElse(StateOrder.builder().build());
+
+        Map<String, Long> statesUnits = order.stream()
+                .collect(Collectors.groupingBy(e -> e.getAddress().getState(), Collectors.summingLong(Order::getTotalUnits)));
+        StateOrder maxStateUnits = statesUnits.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(e -> StateOrder.builder()
+                        .state(e.getKey())
+                        .value(e.getValue())
+                        .build())
+                .orElse(StateOrder.builder().build());
+
+        return AnalyzesResult.builder()
+                .bestSellingProduct(ProductOptionPrice.builder()
+                        .option(bestSollingProduct.getProductOption())
+                        .units(bestSollingProduct.getSoldUnits())
+                        .build())
+                .largestOrder(OrderPrice.builder()
+                        .order(maxOrder)
+                        .value(maxOrder.getTotalPriceCents())
+                        .build())
+                .orderWithGreatestTests(OrderPrice.builder()
+                        .order(maxOrderTesters)
+                        .value(maxOrderTesters.getTotalTesterPriceCents())
+                        .build())
+                .stateGreatestOrders(greatestStateValue)
+                .stateMostOrders(maxStateUnits)
+                .build();
+    }
+
+    /*ProductOptionList processOptions(String accessToken, InventoryList inventories) {
+        return service.updateInventory(accessToken, inventories);
+    }*/
+
+    ProductOption processOptions(String accessToken, String productOptionId, ProductOptionUpdateRequest productOptionUpdate) {
+        return service.updateProductOption(accessToken, productOptionId, productOptionUpdate);
+    }
+
+    boolean acceptOrder(String accessToken, Order order) {
+        return service.acceptOrder(accessToken, order.getId());
+    }
+
+    Order backorderItems(String accessToken, String orderId, Map<String, BackorderItem> items) {
+        return service.backorderItems(accessToken, orderId, items);
+    }
+
+    private <T> List<T> getAll(Function<Integer, ? extends EntityList<T>> fn) {
+        List<T> result = new ArrayList<>();
+        ObjectMapper mapper = new ObjectMapper();
+        for (int page = 1; true; page++) {
+            EntityList<T> list = fn.apply(page);
+            try {
+                System.out.println(mapper.writeValueAsString(list));
+            } catch (JsonProcessingException e) {
+                e.printStackTrace();
+            }
+            if (list == null || list.getItems() == null || list.getItems().isEmpty()) {
+                break;
+            }
+
+            result.addAll(list.getItems());
+        }
+
+
+
+        return result;
+    }
+}

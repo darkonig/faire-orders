@@ -7,8 +7,10 @@ feign:
       default:
         connectTimeout: 1000
         readTimeout: 1000
-        loggerLevel: basic
+        loggerLevel: full
 
 faireservice:
-  url: https://www.faire-stage.com
-  token: abc
+  url: http://www.faire-stage.com
+  token: HQLA9307HSLQYTC24PO2G0LITTIOHS2MJC8120PVZ83HJK4KACRZJL91QB7K01NWS2TUCFXGCHQ8HVED8WNZG0KS6XRNBFRNGY71
+
+logging.level.com.faire: debug
