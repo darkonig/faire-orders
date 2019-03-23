@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Bean;
 
 @SpringBootApplication
 @EnableFeignClients
+//@EnableHypermediaSupport(type = EnableHypermediaSupport.HypermediaType.HAL)
 public class FaireOrdersApplication {
 
     public static void main(String[] args) {

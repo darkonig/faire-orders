@@ -13,6 +13,7 @@ public class OrderProcessorBackOrder implements OrderProcessor {
                 .availableQuantity(option.getAvailableQuantity())
                 .discontinued(!option.isActive())
                 .backorderedUntil(option.getBackorderedUntil())
+                .orderItem(item)
                 .build())
             .build();
     }

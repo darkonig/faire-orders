@@ -66,11 +66,11 @@ public class RestResponseEntityExceptionHandler extends ResponseEntityExceptionH
     }
 
     @ExceptionHandler({ FeignException.class })
-    private ResponseEntity<Object> handleInternal(final RuntimeException ex, final WebRequest request) {
+    public ResponseEntity<Object> handleFeignException(final RuntimeException ex, final WebRequest request) {
         ex.printStackTrace();
         ErrorMessage msg = new ErrorMessage();
         msg.setCode(String.valueOf(HttpStatus.INTERNAL_SERVER_ERROR.value()));
-        msg.setMessage(ex.getMessage());
+        msg.setMessage("Faire integration error - " + ex.getMessage());
 
         return handleExceptionInternal(ex, msg, new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR, request);
     }

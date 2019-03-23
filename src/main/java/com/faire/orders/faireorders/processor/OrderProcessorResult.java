@@ -8,6 +8,9 @@ import lombok.Data;
 @Data
 @Builder
 public class OrderProcessorResult {
+
     private ProductOptionUpdateRequest productOptionUpdateRequest;
+
     private BackorderItem backorderItem;
+
 }

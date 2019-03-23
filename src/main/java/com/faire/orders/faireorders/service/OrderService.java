@@ -2,8 +2,8 @@ package com.faire.orders.faireorders.service;
 
 import com.faire.orders.faireorders.domain.Order;
 import com.faire.orders.faireorders.domain.Product;
-import com.faire.orders.faireorders.entity.AnalyzesResult;
-import com.faire.orders.faireorders.entity.ProcessOrderResult;
+import com.faire.orders.faireorders.service.entity.AnalyzesResult;
+import com.faire.orders.faireorders.service.entity.ProcessOrderResult;
 
 import java.util.List;
 
@@ -15,5 +15,4 @@ public interface OrderService {
 
     ProcessOrderResult processOrder(String accessToken, List<Order> orders, List<Product> brandProductList);
 
-    AnalyzesResult getResultAnalytics(ProcessOrderResult result);
 }

@@ -1,4 +1,4 @@
-package com.faire.orders.faireorders.entity;
+package com.faire.orders.faireorders.service.entity;
 
 import com.faire.orders.faireorders.domain.ProductOption;
 import lombok.Builder;

@@ -5,8 +5,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;
 import lombok.Data;
 
-import java.math.BigDecimal;
-
 @Data
 @Builder
 public class ProductOptionUpdateRequest {
@@ -15,12 +13,13 @@ public class ProductOptionUpdateRequest {
 
     @JsonIgnore
     private ProductOption productOption;
+
     @JsonIgnore
     private long soldUnits;
     @JsonIgnore
-    private long totalValue;
+    private long totalPrice;
     @JsonIgnore
-    private long testerTotalValue;
+    private long testerTotalPrice;
 
     public void addAvailableUnits(long availableUnits) {
         this.availableUnits += availableUnits;
@@ -31,10 +30,10 @@ public class ProductOptionUpdateRequest {
     }
 
     public void addTotalValue(long totalValue) {
-        this.totalValue += totalValue;
+        this.totalPrice += totalValue;
     }
 
     public void addTesterTotalValue(long value) {
-        this.testerTotalValue += value;
+        this.testerTotalPrice += value;
     }
 }

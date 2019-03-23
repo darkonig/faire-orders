@@ -12,8 +12,8 @@ public class OrderProcessorUpdate implements OrderProcessor {
             .availableUnits(option.getAvailableQuantity() - item.getQuantity())
             .productOption(option)
             .soldUnits(item.getQuantity())
-            .totalValue(item.getTesterPriceCents())
-            .testerTotalValue(item.getTotalTesterPriceCents())
+            .totalPrice(item.getTesterPriceCents())
+            .testerTotalPrice(item.getTotalTesterPriceCents())
             .build();
 
         return OrderProcessorResult.builder()

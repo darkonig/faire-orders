@@ -2,8 +2,9 @@ package com.faire.orders.faireorders.controller;
 
 import com.faire.orders.faireorders.domain.Order;
 import com.faire.orders.faireorders.domain.Product;
-import com.faire.orders.faireorders.entity.AnalyzesResult;
-import com.faire.orders.faireorders.entity.ProcessOrderResult;
+import com.faire.orders.faireorders.service.AnalyzeService;
+import com.faire.orders.faireorders.service.entity.AnalyzesResult;
+import com.faire.orders.faireorders.service.entity.ProcessOrderResult;
 import com.faire.orders.faireorders.exception.TechnicalException;
 import com.faire.orders.faireorders.service.OrderService;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -22,11 +23,12 @@ public class OrderController {
     private static final Logger logger = LoggerFactory.getLogger(OrderController.class);
 
     private final OrderService service;
-    private final ObjectMapper mapper;
+    private final AnalyzeService analyzesService;
 
-    public OrderController(OrderService service, ObjectMapper mapper) {
+
+    public OrderController(OrderService service, AnalyzeService analyzesService) {
         this.service = service;
-        this.mapper = mapper;
+        this.analyzesService = analyzesService;
     }
 
     @PostMapping("/{brandId}")
@@ -35,24 +37,12 @@ public class OrderController {
 
         List<Order> orders = service.getNewOrders(accessToken);
 
-        try {
-            logger.debug(mapper.writeValueAsString(orders));
-        } catch (JsonProcessingException e) {
-            e.printStackTrace();
-        }
-
         if (orders.isEmpty()) {
             logger.info("No new orders found.");
             throw new TechnicalException("No new orders found.");
         }
 
         List<Product> products = service.getProducts(accessToken, brandId);
-
-        try {
-            logger.debug(mapper.writeValueAsString(products));
-        } catch (JsonProcessingException e) {
-            e.printStackTrace();
-        }
 
         if (products.isEmpty()) {
             logger.info("No products found with this brandId.");
@@ -62,7 +52,7 @@ public class OrderController {
         ProcessOrderResult result = service.processOrder(accessToken, orders, products);
         logger.debug("[Controller] Result: {}", result);
 
-        AnalyzesResult analytics = service.getResultAnalytics(result);
+        AnalyzesResult analytics = analyzesService.getResultAnalytics(result);
         logger.debug("[Controller] AnalyzesResult: {}", analytics);
 
         return ResponseEntity.ok(analytics);

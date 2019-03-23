@@ -1,45 +1,28 @@
 package com.faire.orders.faireorders.service;
 
 import com.faire.orders.faireorders.domain.*;
-import com.faire.orders.faireorders.domain.collections.OrderResponse;
-import com.faire.orders.faireorders.domain.collections.ProductResponse;
-import com.faire.orders.faireorders.exception.TechnicalException;
+import com.faire.orders.faireorders.service.entity.AnalyzesResult;
 import com.faire.orders.faireorders.service.entity.ProcessOrderResult;
-import com.faire.orders.faireorders.service.impl.OrderServiceImpl;
+import com.faire.orders.faireorders.service.impl.AnalyzeServiceImpl;
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
 
+import javax.xml.ws.spi.WebServiceFeatureAnnotation;
 import java.util.*;
-import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.when;
+import static org.junit.Assert.*;
 
-@RunWith(MockitoJUnitRunner.class)
-public class OrderServiceTest {
+public class AnalyzeServiceTest {
 
-    @Mock
-    private FaireService faireService;
-    @Mock
-    private EntityLogService logService;
-
-    private OrderService service;
-    private List<Product> brandProductList;
-    private List<Product> productList;
+    private AnalyzeService service;
     private List<Order> newOrderList;
-    private List<Order> orderList;
-
-    private String brandId = "b_123";
-    private String accessToken = "TOKENABC";
-
+    private List<Product> brandProductList;
+    private String brandId = "b_0123";
 
     @Before
     public void setUp() throws Exception {
-        service = new OrderServiceImpl(faireService, logService);
+        service = new AnalyzeServiceImpl();
 
         brandProductList = Arrays.asList(
                 Product.builder().brandId(brandId).id("p_1")
@@ -86,10 +69,6 @@ public class OrderServiceTest {
                         .build()
         );
 
-        productList = new ArrayList<>(brandProductList);
-        productList.add(Product.builder().brandId("b_9877").id("p_1234").build());
-        productList.add(Product.builder().brandId("b_9877").id("p_5678").build());
-
         newOrderList = Arrays.asList(
                 Order.builder()
                         .id("bo_123")
@@ -127,93 +106,78 @@ public class OrderServiceTest {
                         .build()
         );
 
-        orderList = new ArrayList<>(newOrderList);
-        orderList.add(Order.builder()
-                .id("bo_1234")
-                .state(OrderState.DELIVERED)
-                .items(
-                        Arrays.asList(OrderItem.builder()
-                                .id("oi_124")
-                                .productOptionId("p_abcu")
-                                .quantity(10)
-                                .build())
-                )
-                .address(Address.builder()
-                        .state("Quebec")
-                        .build())
-                .build()
-        );
-
-        when(faireService.getProducts(anyString(), eq(1))).thenReturn(ProductResponse.builder()
-                .limit(50)
-                .page(1)
-                .products(productList)
-                .build());
-        when(faireService.getProducts(anyString(), eq(2))).thenReturn(ProductResponse.builder()
-                .limit(50)
-                .page(2)
-                .products(Collections.emptyList())
-                .build());
-
-        when(faireService.getOrders(anyString(), eq(1), anyList(), anyString())).thenReturn(OrderResponse.builder()
-                .limit(10)
-                .page(2)
-                .orders(orderList)
-                .build());
-        when(faireService.getOrders(anyString(), eq(2), anyList(), anyString())).thenReturn(OrderResponse.builder()
-                .limit(10)
-                .page(2)
-                .orders(Collections.emptyList())
-                .build());
     }
 
     @Test
-    public void getProducts() {
-        List<Product> products = service.getProducts(accessToken, brandId);
+    public void getResultAnalytics() {
+        Map<String, Map<String, BackorderItem>> backorders = new HashMap<>();
 
-        assertThat(products)
-                //.withFailMessage("The products list is invalid.")
-                .hasSize(brandProductList.size())
-                .filteredOn(e -> brandId.equals(e.getBrandId()));
-    }
+        OrderItem orderItem = newOrderList.get(0).getItems().get(0);
+        orderItem.setProcessed(true);
+        newOrderList.get(0).getItems().get(1).setProcessed(true);
 
-    @Test
-    public void getNewOrders() {
-        List<Order> orders = service.getNewOrders(accessToken);
+        Map<String, BackorderItem> items = new HashMap<>();
+        items.put(orderItem.getOrderId(), BackorderItem.builder()
+                .orderItem(orderItem)
+                .availableQuantity(1)
+                .build());
 
-        assertThat(orders)
-                .hasSize(newOrderList.size())
-                .filteredOn(e -> e.getState() == OrderState.NEW);
-    }
+        backorders.put(newOrderList.get(0).getId(), items);
 
-    @Test
-    public void processOrder_success() {
-        ProcessOrderResult orders = service.processOrder(accessToken, newOrderList, brandProductList);
+        Map<String, ProductOptionUpdateRequest> prodOpt = new HashMap<>();
 
-        assertThat(orders.getOrders())
-                .extracting(Order::getId)
-                .contains(newOrderList.stream().map(Order::getId)
-                        .collect(Collectors.joining()));
+        List<ProductOption> options = brandProductList.get(0).getOptions();
+        ProductOption opt1 = options.get(1);
+        prodOpt.put(opt1.getId(), ProductOptionUpdateRequest.builder()
+                .productOption(opt1)
+                .availableUnits(0)
+                .soldUnits(5)
+                .totalPrice(0)
+                .build());
 
-        Map<String, BackorderItem> backorder = orders.getBackorders().get("bo_123");
-        assertThat(backorder.size()).isEqualTo(1);
+        ProductOption opt2 = options.get(0);
+        prodOpt.put(opt2.getId(), ProductOptionUpdateRequest.builder()
+                .productOption(opt2)
+                .availableUnits(0)
+                .soldUnits(10)
+                .totalPrice(25)
+                .testerTotalPrice(250)
+                .build());
 
-        BackorderItem backorderItem = backorder.get("oi_1232");
-        assertThat(backorderItem).isNotNull();
+        List<Order> orders = new ArrayList<>();
+        orders.add(newOrderList.get(0));
 
-        assertThat(backorderItem)
-                .extracting(BackorderItem::getAvailableQuantity)
-                .isEqualTo(1);
-        assertThat(backorderItem)
-                .extracting(BackorderItem::isDiscontinued)
-                .isEqualTo(false);
+        ProcessOrderResult result = ProcessOrderResult.builder()
+                .backorders(backorders)
+                .productOptionUpdate(prodOpt)
+                .orders(orders)
+                .build();
 
-        assertThat(orders.getProductOptionUpdate())
-                .hasSize(2);
-    }
+        AnalyzesResult analytics = service.getResultAnalytics(result);
 
-    @Test(expected = TechnicalException.class)
-    public void processOrder_error() {
-        service.processOrder(accessToken, orderList, brandProductList);
+        assertThat(analytics.getBestSellingProduct().getOption().getId())
+                .isEqualTo("po_bart");
+        assertThat(analytics.getBestSellingProduct().getUnits())
+                .isEqualTo(10);
+
+        assertThat(analytics.getLargestOrder().getOrder().getId())
+                .isEqualTo("bo_123");
+        assertThat(analytics.getLargestOrder().getValue())
+                .isEqualTo(1_250);
+
+        assertThat(analytics.getStateGreatestOrders().getState())
+                .isEqualTo("Ontario");
+        assertThat(analytics.getStateGreatestOrders().getValue())
+                .isEqualTo(1_250);
+
+        assertThat(analytics.getStateMostOrders().getState())
+                .isEqualTo("Ontario");
+        assertThat(analytics.getStateMostOrders().getValue())
+                .isEqualTo(15);
+
+        assertThat(analytics.getOrderWithGreatestTests().getOrder().getId())
+                .isEqualTo("bo_123");
+        assertThat(analytics.getOrderWithGreatestTests().getValue())
+                .isEqualTo(250);
     }
 }

@@ -20,14 +20,23 @@ public class Order {
     private Address address;
 
     public long getTotalUnits() {
+        if (items == null) {
+            return 0;
+        }
         return items.stream().filter(e -> e.isProcessed()).mapToLong(OrderItem::getQuantity).sum();
     }
 
     public long getTotalPriceCents() {
+        if (items == null) {
+            return 0;
+        }
         return items.stream().filter(e -> e.isProcessed()).mapToLong(OrderItem::getTotalPriceCents).sum();
     }
 
     public long getTotalTesterPriceCents() {
+        if (items == null) {
+            return 0;
+        }
         return items.stream().filter(e -> e.isProcessed()).mapToLong(OrderItem::getTotalTesterPriceCents).sum();
     }
 }
